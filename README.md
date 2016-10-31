@@ -1,3 +1,7 @@
+Code Based on https://github.com/shawnxu1318/VQA-Image-Question-Answering
+
+Below is the original README
+
 # Image Question Answering (VQA)
 
 Keyword: VQA CNN RNN LSTM GRU TORCH 
