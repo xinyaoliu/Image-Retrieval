@@ -3,8 +3,8 @@ require 'nn'
 require 'nngraph'
 require 'optim'
 
--- TODO:    1, map
---          2, label 重构数据，看原po怎么处理每个图片下有多个字幕的问题，图片和字幕连接，字幕和分类连接，label
+-- TODO:    1, backpropagate
+--          2, 正负样本
 
 
 local utils = require 'utils.misc'
@@ -21,7 +21,7 @@ cmd:text('Options')
 cmd:option('-model', 'lstm', 'lstm,gru or rnn')
 cmd:option('-rnn_size', 256, 'Size of LSTM internal state')
 cmd:option('-num_layers', 2, 'Number of layers in LSTM')
-cmd:option('-embedding_size', 256, 'Size of word embeddings')
+cmd:option('-embedding_size', 512, 'Size of word embeddings')
 -- optimization
 cmd:option('-learning_rate', 4e-4, 'Learning rate')
 cmd:option('-learning_rate_decay', 0.95, 'Learning rate decay')   --0.95
