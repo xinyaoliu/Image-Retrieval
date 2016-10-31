@@ -62,6 +62,7 @@ function DataLoader.create(data_dir, batch_size, opt, mode)
     end
 
    
+
     self.batch_size = batch_size
 
     if mode == 'predict' then
@@ -87,7 +88,7 @@ function DataLoader.create(data_dir, batch_size, opt, mode)
     self.batch_data = {['train'] = {}, ['val'] = {}}
 
     self.batch_data.train = {
-        ['question'] = torch.ShortTensor(self.batch_size * math.floor(#data.train / self.batch_size), self.q_max_length),
+        ['question'] = torch.Tensor(self.batch_size * math.floor(#data.train / self.batch_size), self.q_max_length),
         ['image_feat'] = torch.DoubleTensor(self.batch_size * math.floor(#data.train / self.batch_size), 4096),
         ['image_id'] = {},
         ['nbatches'] = math.floor(#data.train / self.batch_size)
@@ -124,7 +125,7 @@ function DataLoader.create(data_dir, batch_size, opt, mode)
     end
 
     self.batch_data.val = {
-        ['question'] = torch.ShortTensor(self.batch_size * math.floor(#data.val / self.batch_size), self.q_max_length),
+        ['question'] = torch.Tensor(self.batch_size * math.floor(#data.val / self.batch_size), self.q_max_length),
         ['image_feat'] = torch.DoubleTensor(self.batch_size * math.floor(#data.val / self.batch_size), 4096),
         ['image_id'] = {},
         ['nbatches'] = math.floor(#data.val / self.batch_size)

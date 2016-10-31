@@ -100,7 +100,7 @@ else
     -- ltw: lookup table + dropout for question words           问题word的查找表，得到vector什么的？
     -- each word of the question gets mapped to its index in vocabulary
     -- and then is passed through ltw to get a vector of size `embedding_size`
-    -- lookup table dimensions are `vocab_size` x `embedding_size`
+    -- lookup table dimensions are `vocab_size` x `embedding_size`  30201->vocab_size
     protos.ltw = nn.Sequential()
     protos.ltw:add(nn.LookupTable(loader.q_vocab_size+1, opt.embedding_size))
     protos.ltw:add(nn.Dropout(opt.dropout))
@@ -138,7 +138,6 @@ else
     protos.sm = nn.Sequential()
     -- print(loader.batch_data.train.nbatches * loader.batch_size)
     protos.sm:add(nn.Linear(opt.rnn_size, 24))   --loader.batch_data.train.nbatches * loader.batch_size  解决中
-    -- protos.sm:add(nn.Tanh())  --解决中
 
 
     -- negative log-likelihood loss
@@ -234,6 +233,7 @@ feval_val = function(max_batches)
         -- forward the question features through ltw
         qf = protos.ltw:forward(q_batch)   --load下一个batch
 
+
         -- forward the image features through lti  fully connected layer 
         imf = img.lti:forward(a_batch)  --i_batch
 
@@ -251,7 +251,7 @@ feval_val = function(max_batches)
             -- 解决中 把所有lstm结果加一起？...
             -- at every time step, set the rnn state (h_t, c_t) to be passed as input in next time step
             rnn_state[t] = {}
-            for i = 1, #init_state do 
+            for i = 1, #init_state do       --        table.insert(init_state, h_init:clone())
                 table.insert(rnn_state[t], lst[i]) 
             end
         end
@@ -291,15 +291,7 @@ feval_val = function(max_batches)
         end
 
 
-        -- imf = imf:narrow(2,1,2)
-        -- idx = prediction:narrow(2,1,2)
-        
-        -- _, idx  = prediction:max(2)                -- 200*64     _, idx  = prediction:max(2)
-        -- print("------------pred-------------")
-        -- print(prediction:size())
-        -- print("------------idx-------------")
-        -- print(idx:size())
-        
+
         for j = 1, opt.batch_size do
             idx  = 0
             for idx = 1, opt.batch_size do
@@ -316,13 +308,7 @@ feval_val = function(max_batches)
             res = res + (1/hmd[j][1] + 2/hmd[j][2] + 3/hmd[j][3] + 4/hmd[j][4] + 5/hmd[j][5])/5
             print(res)
 
-            -- print("----------idx[j][1]----------")
-            -- print(idx[j][1])
-            -- print("----------imf[j][1]----------")
-            -- print(imf[j][1])
-            -- if idx[j][1] == imf[j][1] then  -- a_batch
-                -- count = count + 1
-            -- end
+
         end
 
         --先不管，看要不要解决
@@ -343,7 +329,6 @@ end
 -- closure to run a forward and backward pass and return loss and gradient parameters  
 feval = function(x)
 
-    -- print("now in feval running forward and backward pass")
     -- get latest parameters
     if x ~= params then
         params:copy(x)
@@ -351,13 +336,21 @@ feval = function(x)
     grad_params:zero()
 
     -- load question batch, image features batch and image id batch
-    q_batch, a_batch, i_batch = loader:next_batch()
+    q_batch, a_batch, i_batch = loader:next_batch()   
+    --annotations, image_features, image labels
+
     -- slightly hackish; 1st index of `nn.LookupTable` is reserved for zeros
     q_batch = q_batch + 1
+    -- print(q_batch)
+    -- 200 * 57
+
     -- forward the question features through ltw
     qf = protos.ltw:forward(q_batch)
-    -- forward the image features through lti
+    -- print(qf)    
+    -- 200 * 57 * 256
+    -- print ("------------------------")
 
+    -- forward the image features through lti
     imf = img.lti:forward(a_batch) --i_batch
 
     -- convert to CudaTensor if using gpu
@@ -365,7 +358,7 @@ feval = function(x)
 
     si = imf:storage()
     
-    -- binary code ?
+    -- binary code 
     for i=1, si:size() do
         if si[i] <= 0 then
             si[i] = 0
@@ -379,48 +372,56 @@ feval = function(x)
 
     ------------ forward pass ------------
 
-    -- print("forward pass ")
     -- set initial loss
     loss = 0
 
     -- set the state at 0th time step of LSTM
     rnn_state = {[0] = init_state_global}
-    -- LSTM forward pass for question features
+    -- LSTM forward pass for annotations
     for t = 1, loader.q_max_length do
         lstm_clones[t]:training()
         lst = lstm_clones[t]:forward{qf:select(2,t), unpack(rnn_state[t-1])}   --question feature, initial state
+--  tensor like:
+--                           t-1      t     t+1
+--        I       am          |       |      
+--       There   are          |       |  
+--        It      is          |       |
+--       Here    are          |       |
+--       The    total         |       |
+
         -- at every time step, set the rnn state (h_t, c_t) to be passed as input in next time step
-        -- print(lst[1])
+        -- print(lst)
         ---
         -- {
-        --   1 : CudaTensor - size: 200x512
-        --   2 : CudaTensor - size: 200x512
-        --   3 : CudaTensor - size: 200x512
-        --   4 : CudaTensor - size: 200x512
+        --   1 : CudaTensor - size: 200x256     size of embeddings
+        --          [torch.CudaTensor of size 200x256]
+        --   2 : CudaTensor - size: 200x256
+        --   3 : CudaTensor - size: 200x256
+        --   4 : CudaTensor - size: 200x256
         -- }
         ---
         rnn_state[t] = {}
         for i = 1, #init_state do   -- table.insert(init_state, h_init:clone())
             table.insert(rnn_state[t], lst[i]) 
         end
+
     end
 
-    -- after completing the unrolled LSTM forward pass with question features, forward the image features --解决：把imf删掉了
-    -- print(unpack(rnn_state[loader.q_max_length])) --200*512
+    -- print(unpack(rnn_state[loader.q_max_length])) --200*256
     
     -- lst = lstm_clones[loader.q_max_length + 1]:forward{imf,unpack(rnn_state[loader.q_max_length])}
 
     -- 解决中
     
-    -- hashcode = protos.tan:forward(lst)
 
     -- print(lst)
     -- print(loader.q_vocab_size)   30201
     -- print(loader.q_max_length)  57
     -- print(lst[1]:size())  200*512
     -- print(#lst)  
-    -- forward the hidden state at the last time step to get softmax over answers
-    prediction = protos.sm:forward(lst[#lst])  -- 需要解决 写一个prediction over所有图片？ 200*99800
+    -- forward the hidden state at the last time step to get softmax over features
+    -- print(lst[#lst])
+    prediction = protos.sm:forward(lst[#lst])  -- prediction  = 200*24?
     -- print(prediction)
     -- 可能有问题待解决
 
@@ -504,6 +505,7 @@ feval = function(x)
         end
     end
 
+    -- print(dqf)
     -- zero gradient buffers of lookup table, backprop into it and update parameters
     protos.ltw:zeroGradParameters()
     protos.ltw:backward(q_batch, dqf)
@@ -544,6 +546,7 @@ lloss = 0
 for i = 1, iterations do
 
     _, local_loss = optim.adam(feval, params, optim_state)
+
 
     losses[#losses + 1] = local_loss[1]
 
